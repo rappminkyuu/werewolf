@@ -211,17 +211,41 @@ function rReplay() {
 // ---------------- aksi ----------------
 async function loadLb() { const r = await call('lb:get', S.lbType); S.lb = r.rows || []; render() }
 // ---------------- lagu ----------------
-const AU = new Audio(); AU.loop = true; AU.volume = 0.5
+// ---- pemutar YouTube tersembunyi (audio saja) ----
+const YTP = { p: null, ready: false, vid: '', playing: false }
+{
+  const h = document.createElement('div')
+  h.style.cssText = 'position:fixed;left:-9999px;top:0;width:200px;height:200px;opacity:0;pointer-events:none'
+  h.innerHTML = '<div id="ytp"></div>'
+  document.body.appendChild(h)
+  window.onYouTubeIframeAPIReady = () => {
+    YTP.p = new window.YT.Player('ytp', {
+      width: '200', height: '200', playerVars: { playsinline: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, origin: location.origin },
+      events: {
+        onReady: () => { YTP.ready = true; YTP.p.setVolume(50); syncMusic() },
+        onStateChange: (e) => {
+          YTP.playing = e.data === 1
+          if (e.data === 0) { YTP.p.seekTo(0); YTP.p.playVideo() } // ulang terus
+          const b = $('#mu'); if (b && S.room?.music) b.textContent = S.muted || !YTP.playing ? '🔇' : '🔊'
+        },
+        onError: () => toast('Lagu ini tidak bisa diputar (dibatasi YouTube). Pilih lagu lain.'),
+      },
+    })
+  }
+  const sc = document.createElement('script'); sc.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(sc)
+}
 try { S.muted = localStorage.getItem('ww_muted') === '1' } catch {}
 const END = new Audio('/assets/the-end.mp3'); END.preload = 'auto'
 let endPlaying = false
 function playEnd() {
-  endPlaying = true; AU.pause()
+  endPlaying = true; ytPause()
   END.currentTime = 0
   END.play().catch(() => { endPlaying = false; syncMusic() })
 }
 END.addEventListener('ended', () => { endPlaying = false; syncMusic() })
 let musicUrl = '', interacted = false
+const ytPause = () => { try { YTP.ready && YTP.p.pauseVideo() } catch {} }
+const ytPlay = () => { try { YTP.ready && YTP.p.playVideo() } catch {} }
 const safeUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '')
 function musicBox(r, isHost) {
   const m = r.music
@@ -232,15 +256,18 @@ function musicBox(r, isHost) {
 }
 function syncMusic() {
   const m = S.room?.music, b = $('#mu')
-  if (!m) { if (musicUrl) { musicUrl = ''; AU.pause(); AU.removeAttribute('src'); AU.load() } if (b) b.style.display = 'none'; return }
-  if (musicUrl !== m.url) { AU.src = m.url; musicUrl = m.url }
-  if (b) { b.style.display = 'block'; b.textContent = S.muted || AU.paused ? '🔇' : '🔊'; b.title = `${m.title} — ${m.artist}` }
-  if (interacted && !S.muted && !endPlaying && AU.paused) AU.play().then(() => b && (b.textContent = '🔊')).catch(() => {})
+  if (!m) { if (musicUrl) { musicUrl = ''; try { YTP.ready && YTP.p.stopVideo() } catch {} } if (b) b.style.display = 'none'; return }
+  if (b) { b.style.display = 'block'; b.textContent = S.muted || !YTP.playing ? '🔇' : '🔊'; b.title = `${m.title} — ${m.artist}` }
+  if (!YTP.ready) return
+  if (musicUrl !== m.vid) { musicUrl = m.vid; if (interacted && !S.muted && !endPlaying) YTP.p.loadVideoById(m.vid); else YTP.p.cueVideoById(m.vid) }
+  else if (interacted && !S.muted && !endPlaying && !YTP.playing) {
+    const st = YTP.p.getPlayerState?.()
+    if (st === 5 || st === 2 || st === -1) YTP.p.playVideo()
+  }
 }
 const unlockAudio = () => { if (!interacted) { interacted = true; END.muted = true; END.play().then(() => { END.pause(); END.currentTime = 0; END.muted = false }).catch(() => { END.muted = false }); syncMusic() } }
 document.addEventListener('pointerdown', unlockAudio, { once: true })
 document.addEventListener('keydown', unlockAudio, { once: true })
-AU.addEventListener('error', () => { if (musicUrl) toast('Lagu gagal diputar (link audio bermasalah)') })
 async function loadHist() { const r = await call('hist:list'); S.hist = r.games || []; render() }
 async function openReplay(id) { const r = await call('hist:get', id); if (r.error) return toast(r.error); S.replay = r.game; S.rpCh = 'all'; S.view = 'replay'; render() }
 const err = (r) => r?.error && (toast(r.error), true)
@@ -271,7 +298,7 @@ document.addEventListener('click', async (e) => {
   }
   else if (a === 'mpick') { const r = await call('music:set', { i: Number(x) }); if (!err(r)) { S.mres = null; toast('Lagu diatur!'); render() } }
   else if (a === 'mclear') { S.mres = null; err(await call('music:clear')) }
-  else if (a === 'mute') { S.muted = !S.muted; try { localStorage.setItem('ww_muted', S.muted ? '1' : '0') } catch {} if (S.muted) AU.pause(); syncMusic() }
+  else if (a === 'mute') { S.muted = !S.muted; try { localStorage.setItem('ww_muted', S.muted ? '1' : '0') } catch {} if (S.muted) ytPause(); syncMusic() }
   else if (a === 'kick') err(await call('room:kick', { uid: x }))
   else if (a === 'start') err(await call('room:start'))
   else if (a === 'close') err(await call('room:close'))
