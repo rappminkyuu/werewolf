@@ -147,7 +147,7 @@ io.on('connection', (socket) => {
     if (room.state !== 'lobby') return fail(cb, 'Lagu hanya bisa diatur sebelum game mulai')
     try {
       room.musicCands = await searchTracks(q)
-      ok(cb, { tracks: room.musicCands.map(({ title, artist, cover }) => ({ title, artist, cover })) })
+      ok(cb, { tracks: room.musicCands.map(({ title, artist, cover, dur }) => ({ title, artist, cover, dur })) })
     } catch (e) { fail(cb, e.message || 'Gagal mencari lagu') }
   })
   socket.on('music:set', ({ i } = {}, cb) => {
