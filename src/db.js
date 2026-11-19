@@ -22,6 +22,22 @@ function firebaseImpl(db, FieldValue) {
       })
       return pub(u)
     },
+    // ganti username: uid & token tetap, penjaga unik dipindah secara atomik
+    async renameUser(uid, username) {
+      const lower = username.toLowerCase()
+      await db.runTransaction(async (t) => {
+        const meRef = users.doc(uid)
+        const me = await t.get(meRef)
+        if (!me.exists) throw new Error('NO_USER')
+        const oldLower = me.data().usernameLower || me.data().username.toLowerCase()
+        const newRef = db.collection('usernames').doc(lower)
+        const taken = await t.get(newRef)
+        if (taken.exists && taken.data().uid !== uid) throw new Error('USERNAME_TAKEN')
+        if (oldLower !== lower) t.delete(db.collection('usernames').doc(oldLower))
+        t.set(newRef, { uid })
+        t.update(meRef, { username, usernameLower: lower })
+      })
+    },
     async byToken(hash) { const s = await users.where('tokenHash', '==', hash).limit(1).get(); return s.empty ? null : pub(s.docs[0].data()) },
     async byId(uid) { const s = await users.doc(uid).get(); return s.exists ? s.data() : null },
     async setAvatar(uid, dataUrl) { const at = Date.now(); await users.doc(uid).update({ avatar: dataUrl, avatarAt: at }); return at },
@@ -58,6 +74,13 @@ function fileImpl() {
       if (Object.values(d.users).some((u) => u.usernameLower === username.toLowerCase())) throw new Error('USERNAME_TAKEN')
       const u = newUser(username, tokenHash); d.users[u.uid] = u; save(); return pub(u)
     },
+    async renameUser(uid, username) {
+      const u = d.users[uid]
+      if (!u) throw new Error('NO_USER')
+      const lower = username.toLowerCase()
+      if (Object.values(d.users).some((x) => x.uid !== uid && x.usernameLower === lower)) throw new Error('USERNAME_TAKEN')
+      u.username = username; u.usernameLower = lower; save()
+    },
     async byToken(hash) { return pub(Object.values(d.users).find((u) => u.tokenHash === hash)) || null },
     async byId(uid) { return d.users[uid] || null },
     async setAvatar(uid, dataUrl) { const u = d.users[uid]; u.avatar = dataUrl; u.avatarAt = Date.now(); save(); return u.avatarAt },
@@ -86,5 +109,5 @@ if (fs.existsSync(KEY)) {
   impl = fileImpl()
   console.warn('[DB] serviceAccountKey.json tidak ditemukan -> pakai file lokal data/db.json (hanya untuk uji coba)')
 }
-export const { createUser, byToken, byId, setAvatar, saveGame, history, getGame, leaderboard } = impl
+export const { createUser, renameUser, byToken, byId, setAvatar, saveGame, history, getGame, leaderboard } = impl
 export { pub as publicUser }
