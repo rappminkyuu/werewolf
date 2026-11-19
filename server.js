@@ -72,6 +72,27 @@ io.on('connection', (socket) => {
     u.avatarAt = await DB.setAvatar(u.uid, dataUrl)
     ok(cb, { avatarAt: u.avatarAt })
   })
+  // ganti username: akun (uid + token) tetap sama, hanya nama tampilan yang berubah. Tetap harus unik.
+  socket.on('profile:rename', async ({ username } = {}, cb) => {
+    const u = user()
+    if (!u) return fail(cb, 'Belum masuk')
+    username = String(username || '').trim()
+    if (!/^[A-Za-z0-9_.-]{3,16}$/.test(username)) return fail(cb, 'Username 3-16 karakter: huruf, angka, _ . -')
+    if (username === u.username) return ok(cb, { username })
+    const room = myRoom()
+    if (room && room.state !== 'lobby') return fail(cb, 'Nama tidak bisa diganti saat game sedang berjalan. Selesaikan game dulu.')
+    try { await DB.renameUser(u.uid, username) }
+    catch (e) {
+      if (e.message === 'USERNAME_TAKEN') return fail(cb, 'Username sudah dipakai orang lain')
+      console.error(e); return fail(cb, 'Gagal mengganti username')
+    }
+    const p = room && getP(room, u.uid)
+    if (p) { p.name = username; pushState(room); hooks.roomsChanged() }
+    // perbarui semua tab/perangkat milik akun yang sama
+    for (const s of await io.in('u:' + u.uid).fetchSockets()) if (s.data.user) s.data.user.username = username
+    io.to('u:' + u.uid).emit('profile:renamed', { username })
+    ok(cb, { username })
+  })
   socket.on('lb:get', async (type, cb) => ok(cb, { rows: await DB.leaderboard(type) }))
   socket.on('hist:list', async (cb) => user() && ok(cb, { games: await DB.history(user().uid) }))
   socket.on('hist:get', async (id, cb) => {
