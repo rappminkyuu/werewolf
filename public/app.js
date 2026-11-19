@@ -68,6 +68,7 @@ function render() {
   const keep = a && a.id === 'ci' ? { v: a.value, s: a.selectionStart } : null
   const m0 = $('#msgs'); const bottom = !m0 || m0.scrollHeight - m0.scrollTop - m0.clientHeight < 50
   const un = a && a.id === 'un' ? a.value : null
+  const nn = a && a.id === 'nn' ? { v: a.value, s: a.selectionStart } : null
   const mq = a && a.id === 'mq' ? { v: a.value, s: a.selectionStart } : null
   const V = { boot: () => '<h1>…</h1>', auth: rAuth, home: rHome, lobby: rLobby, game: rGame, end: rEnd, replay: rReplay }
   $('#app').innerHTML = (V[S.view] || V.boot)()
@@ -76,6 +77,7 @@ function render() {
   renderTop()
   if (keep) { const i = $('#ci'); if (i) { i.value = keep.v; i.focus(); i.setSelectionRange(keep.s, keep.s) } }
   if (un != null && $('#un')) { $('#un').value = un; $('#un').focus() }
+  if (nn && $('#nn')) { const i = $('#nn'); i.value = nn.v; i.focus(); i.setSelectionRange(nn.s, nn.s) }
   if (mq && $('#mq')) { const i = $('#mq'); i.value = mq.v; i.focus(); i.setSelectionRange(mq.s, mq.s) }
   syncMusic()
 }
@@ -115,7 +117,7 @@ function renderOv() {
 }
 
 const rAuth = () => `<h1>WEREWOLF</h1><div class="box"><h2>Masukkan username</h2>
-<p class="muted">Username jadi akunmu selamanya dan <b>tidak bisa diganti</b>. Tanpa password, akun tersimpan di perangkat ini.</p>
+<p class="muted">Username tidak boleh sama dengan pemain lain. Nanti bisa kamu ganti lewat profil, akunmu tetap sama. Tanpa password, akun tersimpan di perangkat ini.</p>
 <input id="un" maxlength="16" placeholder="contoh: serigala_77" autocomplete="off"><button class="red mt" data-a="register">MULAI MAIN</button></div>`
 
 const stat = (u) => `<div class="stats"><div><b>${u.games}</b>main</div><div><b>${u.wins}</b>menang</div><div><b>${u.wolfWins}</b>menang nyamar</div></div>`
@@ -137,7 +139,9 @@ ${S.lb.length ? S.lb.map((r, i) => `<div class="item"><span class="px" style="fo
     body = `<div class="box sage"><h2>RIWAYAT PERMAINAN</h2>${S.hist == null ? '<p class="muted">Memuat…</p>' : S.hist.length ? S.hist.map((g) => { const me = g.players.find((p) => p.uid === u.uid); return `<div class="item" data-a="histopen" data-x="${g.id}" style="cursor:pointer"><div class="grow"><b>${esc(g.title.split('\n')[0])}</b><div class="muted">${dt(g.endedAt)} · ${g.players.length} pemain</div><div class="muted">kamu: ${esc(me?.rl || '')} ${me?.win ? '🏆 menang' : '💀 kalah'}</div></div><span class="badge">REPLAY</span></div>` }).join('') : '<p class="muted">Belum ada permainan selesai.</p>'}</div>`
   }
   return `<h1>WEREWOLF</h1><div class="box"><div class="row">
-<div data-a="avatar" style="cursor:pointer" title="Ganti foto">${av(u.uid, u.avatarAt, 'big')}</div><div class="grow"><h2 style="margin:0 0 4px">${esc(u.username)}</h2><div class="muted">tap foto untuk ganti dari galeri</div></div></div><div class="mt">${stat(u)}</div></div>
+<div data-a="avatar" style="cursor:pointer" title="Ganti foto">${av(u.uid, u.avatarAt, 'big')}</div><div class="grow">${S.editName
+    ? `<input id="nn" maxlength="16" value="${esc(u.username)}" autocomplete="off" autocapitalize="off"><div class="row mt"><button class="sm red grow" data-a="namesave">Simpan</button><button class="sm grow" data-a="namecancel">Batal</button></div>`
+    : `<h2 style="margin:0 0 4px">${esc(u.username)} <button class="sm" data-a="nameedit" title="Ganti nama" aria-label="Ganti nama">✏️</button></h2><div class="muted">tap foto untuk ganti dari galeri</div>`}</div></div><div class="mt">${stat(u)}</div></div>
 <div class="tabs">${tabs.map(([k, l]) => `<button class="${S.htab === k ? 'on' : ''}" data-a="htab" data-x="${k}">${l}</button>`).join('')}</div>${body}`
 }
 
@@ -281,6 +285,9 @@ document.addEventListener('click', async (e) => {
     if (err(r)) return
     localStorage.setItem('ww_token', token); afterAuth(r.user)
   } else if (a === 'avatar') $('#file').click()
+  else if (a === 'nameedit') { S.editName = true; render(); const i = $('#nn'); if (i) { i.focus(); i.select() } }
+  else if (a === 'namecancel') { S.editName = false; render() }
+  else if (a === 'namesave') saveName()
   else if (a === 'htab') { S.htab = x; if (x === 'top') loadLb(); if (x === 'hist') { S.hist = null; loadHist() } render() }
   else if (a === 'lb') { S.lbType = x; loadLb() }
   else if (a === 'histopen') openReplay(x)
@@ -319,7 +326,16 @@ document.addEventListener('click', async (e) => {
     S.view = 'home'; S.end = null; S.replay = null; S.nextState = null; S.htab = 'rooms'; render()
   }
 })
-document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'ci') sendChat(); if (e.key === 'Enter' && e.target.id === 'mq') document.querySelector('[data-a=msearch]')?.click(); if (e.key === 'Enter' && e.target.id === 'un') document.querySelector('[data-a=register]').click() })
+document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'ci') sendChat(); if (e.key === 'Enter' && e.target.id === 'mq') document.querySelector('[data-a=msearch]')?.click(); if (e.key === 'Enter' && e.target.id === 'un') document.querySelector('[data-a=register]').click(); if (e.key === 'Enter' && e.target.id === 'nn') saveName(); if (e.key === 'Escape' && e.target.id === 'nn') { S.editName = false; render() } })
+async function saveName() {
+  const username = $('#nn')?.value.trim(); if (!username) return
+  if (username === S.user.username) { S.editName = false; return render() }
+  const r = await call('profile:rename', { username })
+  if (err(r)) return
+  S.user.username = r.username; S.editName = false; toast('Username diganti jadi ' + r.username); render()
+}
+// ganti nama dari tab/perangkat lain pada akun yang sama
+socket.on('profile:renamed', ({ username }) => { if (S.user) { S.user.username = username; render() } })
 async function sendChat() { const i = $('#ci'); if (!i || !i.value.trim()) return; const text = i.value; i.value = ''; err(await call('chat:send', { ch: S.ch, text })) }
 
 // ---------------- foto profil dari galeri ----------------
