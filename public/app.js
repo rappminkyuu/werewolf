@@ -150,6 +150,7 @@ function rLobby() {
   return `<h1>ROOM</h1><div class="box center"><div class="code">${r.code}</div><p class="muted">${r.isPublic ? '🌐 Publik' : '🔒 Privat'} · ${r.players.length}/${r.max} pemain (min ${r.min})</p>
 <button class="gold" data-a="copy" data-x="${esc(link)}">🔗 Salin link masuk</button></div>
 ${musicBox(r, isHost)}
+<div class="box sage"><h2>💬 CHAT LOBBY</h2><div class="msgs" id="msgs" style="height:30vh">${S.chat.filter((m) => m.ch === 'main').map(msgHtml).join('') || '<p class="muted center">Belum ada pesan. Sapa dulu yuk 👋</p>'}</div><div class="row"><input id="ci" maxlength="300" placeholder="Ketik pesan…" autocomplete="off"><button class="gold" data-a="send">Kirim</button></div></div>
 <div class="box sage"><h2>PEMAIN</h2>${r.players.map((p) => `<div class="item">${av(p.uid, p.av, 'sm')}<div class="grow">${esc(p.name)} ${p.uid === r.host ? '<span class="badge">HOST</span>' : ''}${p.online ? '' : ' <span class="muted">(offline)</span>'}</div>${isHost && p.uid !== r.host ? `<button class="sm red" data-a="kick" data-x="${p.uid}">Kick</button>` : ''}</div>`).join('')}</div>
 ${isHost ? `<button class="red" style="width:100%" data-a="start" ${r.players.length < r.min ? 'disabled' : ''}>${r.players.length < r.min ? `BUTUH ${r.min - r.players.length} PEMAIN LAGI` : 'MULAI GAME'}</button><button class="mt" style="width:100%" data-a="close">Tutup room</button>` : '<p class="center muted">Menunggu host memulai…</p><button style="width:100%" data-a="leave">Keluar</button>'}`
 }
@@ -336,7 +337,7 @@ async function saveName() {
 }
 // ganti nama dari tab/perangkat lain pada akun yang sama
 socket.on('profile:renamed', ({ username }) => { if (S.user) { S.user.username = username; render() } })
-async function sendChat() { const i = $('#ci'); if (!i || !i.value.trim()) return; const text = i.value; i.value = ''; err(await call('chat:send', { ch: S.ch, text })) }
+async function sendChat() { const i = $('#ci'); if (!i || !i.value.trim()) return; const text = i.value; i.value = ''; err(await call('chat:send', { ch: S.view === 'lobby' ? 'main' : S.ch, text })) }
 
 // ---------------- foto profil dari galeri ----------------
 $('#file').addEventListener('change', async (e) => {
