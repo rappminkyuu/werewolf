@@ -56,7 +56,9 @@ export function historyFor(room, uid) {
 }
 
 function canChat(room, p, ch) {
-  if (room.state !== 'play' || room.dead) return false
+  if (room.dead) return false
+  if (room.state === 'lobby') return ch === 'main' // di lobby semua pemain bebas ngobrol
+  if (room.state !== 'play') return false
   const ph = room.phase
   if (ch === 'main') return p.alive && ['head', 'day', 'vote'].includes(ph) && !(['day', 'vote'].includes(ph) && room.silenced && room.silenced.has(num(p.jid)))
   if (ch === 'wolf') return p.alive && p.team === 'wolf' && ph === 'night'
@@ -77,7 +79,7 @@ const audience = (room, ch) => room.players.filter((p) => {
 export function chatSend(room, p, ch, text) {
   text = String(text || '').trim().slice(0, 300)
   if (!text) return 'Pesan kosong'
-  if (!canChat(room, p, ch)) return 'Chat ini sedang ditutup'
+  if (!p || !canChat(room, p, ch)) return 'Chat ini sedang ditutup'
   addLog(room, { ch, kind: 'chat', uid: p.jid, name: p.name, text }, audience(room, ch))
   return null
 }
@@ -1226,6 +1228,8 @@ export function createRoom(user, isPublic) {
   return room
 }
 export function addPlayer(room, user) {
+  // pemain baru ikut bisa membaca chat lobby yang sudah ada
+  for (const e of room.log) if (e.phase === 'lobby' && e.ch === 'main' && !e.vis.includes(user.uid)) e.vis.push(user.uid)
   room.players.push({ jid: user.uid, name: user.username, av: user.avatarAt || 0, no: room.players.length + 1, role: null, alive: true, online: true })
   pushState(room)
   hooks.roomsChanged()
