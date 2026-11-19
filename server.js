@@ -118,6 +118,7 @@ io.on('connection', (socket) => {
       if (room.state !== 'lobby') return fail(cb, 'Game di room ini sudah dimulai')
       if (room.players.length >= CFG.MAX) return fail(cb, `Room penuh (maks ${CFG.MAX})`)
       addPlayer(room, u)
+      socket.emit('chat:history', historyFor(room, u.uid))
     }
     ok(cb, { code: room.code })
   })
